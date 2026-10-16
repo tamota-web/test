@@ -1,0 +1,357 @@
+plugins {
+    id 'eclipse'
+    id 'idea'
+    id 'maven-publish'
+    id 'net.minecraftforge.gradle' version '[6.0,6.2)'
+}
+
+version = mod_version
+group = mod_group_id
+
+base {
+    archivesName = mod_id
+}
+
+// Mojang ships Java 17 to end users in 1.18+, so your mod should target Java 17.
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+
+println "Java: ${System.getProperty 'java.version'}, JVM: ${System.getProperty 'java.vm.version'} (${System.getProperty 'java.vendor'}), Arch: ${System.getProperty 'os.arch'}"
+minecraft {
+    // The mappings can be changed at any time and must be in the following format.
+    // Channel:   Version:
+    // official   MCVersion             Official field/method names from Mojang mapping files
+    // parchment  YYYY.MM.DD-MCVersion  Open community-sourced parameter names and javadocs layered on top of official
+    //
+    // You must be aware of the Mojang license when using the 'official' or 'parchment' mappings.
+    // See more information here: https://github.com/MinecraftForge/MCPConfig/blob/master/Mojang.md
+    //
+    // Parchment is an unofficial project maintained by ParchmentMC, separate from MinecraftForge
+    // Additional setup is needed to use their mappings: https://parchmentmc.org/docs/getting-started
+    //
+    // Use non-default mappings at your own risk. They may not always work.
+    // Simply re-run your setup task after changing the mappings to update your workspace.
+    mappings channel: mapping_channel, version: mapping_version
+
+    // When true, this property will have all Eclipse/IntelliJ IDEA run configurations run the "prepareX" task for the given run configuration before launching the game.
+    // In most cases, it is not necessary to enable.
+    // enableEclipsePrepareRuns = true
+    // enableIdeaPrepareRuns = true
+
+    // This property allows configuring Gradle's ProcessResources task(s) to run on IDE output locations before launching the game.
+    // It is REQUIRED to be set to true for this template to function.
+    // See https://docs.gradle.org/current/dsl/org.gradle.language.jvm.tasks.ProcessResources.html
+    copyIdeResources = true
+
+    // When true, this property will add the folder name of all declared run configurations to generated IDE run configurations.
+    // The folder name can be set on a run configuration using the "folderName" property.
+    // By default, the folder name of a run configuration is the name of the Gradle project containing it.
+    // generateRunFolders = true
+
+    // This property enables access transformers for use in development.
+    // They will be applied to the Minecraft artifact.
+    // The access transformer file can be anywhere in the project.
+    // However, it must be at "META-INF/accesstransformer.cfg" in the final mod jar to be loaded by Forge.
+    // This default location is a best practice to automatically put the file in the right place in the final jar.
+    // See https://docs.minecraftforge.net/en/latest/advanced/accesstransformers/ for more information.
+    // accessTransformer = file('src/main/resources/META-INF/accesstransformer.cfg')
+
+    // Default run configurations.
+    // These can be tweaked, removed, or duplicated as needed.
+    runs {
+        // applies to all the run configs below
+        configureEach {
+            workingDirectory project.file('run')
+
+            // Recommended logging data for a userdev environment
+            // The markers can be added/remove as needed separated by commas.
+            // "SCAN": For mods scan.
+            // "REGISTRIES": For firing of registry events.
+            // "REGISTRYDUMP": For getting the contents of all registries.
+            property 'forge.logging.markers', 'REGISTRIES'
+
+            // Recommended logging level for the console
+            // You can set various levels here.
+            // Please read: https://stackoverflow.com/questions/2031163/when-to-use-the-different-log-levels
+            property 'forge.logging.console.level', 'debug'
+
+            mods {
+                "${mod_id}" {
+                    source sourceSets.main
+                }
+            }
+        }
+
+        client {
+            // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.
+            property 'forge.enabledGameTestNamespaces', mod_id
+        }
+
+        server {
+            property 'forge.enabledGameTestNamespaces', mod_id
+            args '--nogui'
+        }
+
+        // This run config launches GameTestServer and runs all registered gametests, then exits.
+        // By default, the server will crash when no gametests are provided.
+        // The gametest system is also enabled by default for other run configs under the /test command.
+        gameTestServer {
+            property 'forge.enabledGameTestNamespaces', mod_id
+        }
+
+        // 自检客户端：给「投掷物捕获式烘焙」的在线自检用（真客户端、真渲染器）。
+        //   $env:HORDE_PROBE='minecraft:arrow,minecraft:snowball'; .\gradlew.bat runClientProbe
+        // 用环境变量而不是 -D：ForgeGradle 的 run 配置不透传宿主 JVM 的 -D，环境变量一定会被继承。
+        clientProbe {
+            parent runs.client
+        }
+
+        data {
+            // example of overriding the workingDirectory set in configureEach above
+            workingDirectory project.file('run-data')
+
+            // Specify the modid for data generation, where to output the resulting resource, and where to look for existing resources.
+            args '--mod', mod_id, '--all', '--output', file('src/generated/resources/'), '--existing', file('src/main/resources/')
+        }
+    }
+}
+
+// Include resources generated by data generators.
+sourceSets.main.resources { srcDir 'src/generated/resources' }
+
+repositories {
+    // Put repositories for dependencies here
+    // ForgeGradle automatically adds the Forge maven and Maven Central for you
+
+    // If you have mod jar dependencies in ./libs, you can declare them as a repository like so.
+    // See https://docs.gradle.org/current/userguide/declaring_repositories.html#sub:flat_dir_resolver
+    // flatDir {
+    //     dir 'libs'
+    // }
+}
+
+dependencies {
+    // Specify the version of Minecraft to use.
+    // Any artifact can be supplied so long as it has a "userdev" classifier artifact and is a compatible patcher artifact.
+    // The "userdev" classifier will be requested and setup by ForgeGradle.
+    // If the group id is "net.minecraft" and the artifact id is one of ["client", "server", "joined"],
+    // then special handling is done to allow a setup of a vanilla dependency without the use of an external repository.
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+
+    // Example mod dependency with JEI - using fg.deobf() ensures the dependency is remapped to your development mappings
+    // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
+    // compileOnly fg.deobf("mezz.jei:jei-${mc_version}-common-api:${jei_version}")
+    // compileOnly fg.deobf("mezz.jei:jei-${mc_version}-forge-api:${jei_version}")
+    // runtimeOnly fg.deobf("mezz.jei:jei-${mc_version}-forge:${jei_version}")
+
+    // Example mod dependency using a mod jar from ./libs with a flat dir repository
+    // This maps to ./libs/coolmod-${mc_version}-${coolmod_version}.jar
+    // The group id is ignored when searching -- in this case, it is "blank"
+    // implementation fg.deobf("blank:coolmod-${mc_version}:${coolmod_version}")
+
+    // For more info:
+    // http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
+    // http://www.gradle.org/docs/current/userguide/dependency_management.html
+}
+
+// This block of code expands all declared replace properties in the specified resource targets.
+// A missing property will result in an error. Properties are expanded using ${} Groovy notation.
+// When "copyIdeResources" is enabled, this will also run before the game launches in IDE environments.
+// See https://docs.gradle.org/current/dsl/org.gradle.language.jvm.tasks.ProcessResources.html
+tasks.named('processResources', ProcessResources).configure {
+    var replaceProperties = [
+            minecraft_version: minecraft_version, minecraft_version_range: minecraft_version_range,
+            forge_version: forge_version, forge_version_range: forge_version_range,
+            loader_version_range: loader_version_range,
+            mod_id: mod_id, mod_name: mod_name, mod_license: mod_license, mod_version: mod_version,
+            mod_authors: mod_authors, mod_description: mod_description,
+    ]
+    inputs.properties replaceProperties
+
+    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) {
+        expand replaceProperties + [project: project]
+    }
+}
+
+// Example for how to get properties into the manifest for reading at runtime.
+tasks.named('jar', Jar).configure {
+    manifest {
+        attributes([
+                'Specification-Title'     : mod_id,
+                'Specification-Vendor'    : mod_authors,
+                'Specification-Version'   : '1', // We are version 1 of ourselves
+                'Implementation-Title'    : project.name,
+                'Implementation-Version'  : project.jar.archiveVersion,
+                'Implementation-Vendor'   : mod_authors,
+                'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
+        ])
+    }
+
+    // This is the preferred method to reobfuscate your jar file
+    finalizedBy 'reobfJar'
+}
+
+// However if you are in a multi-project build, dev time needs unobfed jar files, so you can delay the obfuscation until publishing by doing:
+// tasks.named('publish').configure {
+//     dependsOn 'reobfJar'
+// }
+
+// Example configuration to allow publishing using the maven-publish plugin
+publishing {
+    publications {
+        register('mavenJava', MavenPublication) {
+            artifact jar
+        }
+    }
+    repositories {
+        maven {
+            url "file://${project.projectDir}/mcmodsrepo"
+        }
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
+}
+
+// ---------------------------------------------------------------------------
+// 离线验证：骨骼烘焙 / 动画采样 / 着色器父链数学（不需要 GL，也不进 jar）
+//   ./gradlew harness
+// ---------------------------------------------------------------------------
+sourceSets {
+    harness {
+        java.srcDir 'src/harness/java'
+        compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+        runtimeClasspath += sourceSets.main.output + sourceSets.main.runtimeClasspath
+    }
+}
+
+tasks.register('harness', JavaExec) {
+    group = 'verification'
+    description = 'Runs the offline rig-baking verification harness'
+    classpath = sourceSets.harness.runtimeClasspath
+    mainClass = 'dev.swordkingdom.horde.harness.RigHarness'
+}
+
+tasks.register('shaderHarness', JavaExec) {
+    group = 'verification'
+    description = 'Compiles and renders the crowd shaders in a hidden GL 3.2 context'
+    classpath = sourceSets.harness.runtimeClasspath
+    mainClass = 'dev.swordkingdom.horde.client.ShaderHarness'
+}
+
+// 碰撞分离的验证：一堆重合成一坨的单位必须被拆开、不再互相穿透
+tasks.register('collisionHarness', JavaExec) {
+    group = 'verification'
+    description = 'Verifies crowd collision separation (no more interpenetrating units)'
+    classpath = sourceSets.harness.runtimeClasspath
+    mainClass = 'dev.swordkingdom.horde.harness.CollisionHarness'
+}
+
+// 技能结算的验证：命中帧、范围、伤害（含原版护甲公式）、击退
+tasks.register('skillHarness', JavaExec) {
+    group = 'verification'
+    description = 'Verifies in-simulation skill resolution maths (impact frame, radius, damage, knockback)'
+    classpath = sourceSets.harness.runtimeClasspath
+    mainClass = 'dev.swordkingdom.horde.harness.SkillHarness'
+}
+
+// 动作/技能动画驱动的验证（灾变 Ignis / Ender Guardian 这类「动画状态 + 计时 + 清单」的 API）
+tasks.register('actionHarness', JavaExec) {
+    group = 'verification'
+    description = 'Verifies the generic action/skill animation driver against a Cataclysm-shaped stub'
+    classpath = sourceSets.harness.runtimeClasspath
+    mainClass = 'dev.swordkingdom.horde.harness.ActionHarness'
+}
+
+// 快照同步（含拆包）的验证：数量不设限，收齐后一台不落
+tasks.register('syncHarness', JavaExec) {
+    group = 'verification'
+    description = 'Verifies chunked crowd snapshots round-trip and reassemble without dropping units'
+    classpath = sourceSets.harness.runtimeClasspath
+    mainClass = 'dev.swordkingdom.horde.harness.SyncHarness'
+}
+
+// 通用部件系统适配器的验证：两个命名风格完全不同的替身部件系统，都必须被正确识别
+tasks.register('adapterHarness', JavaExec) {
+    group = 'verification'
+    description = 'Verifies the generic (mod-agnostic) part-system adapter with two differently-named stand-in systems'
+    classpath = sourceSets.harness.runtimeClasspath
+    mainClass = 'dev.swordkingdom.horde.harness.AdapterHarness'
+}
+
+// GeckoLib 系（geo.json / Bedrock 模型）适配器的验证：GeoBone 形状的替身模型必须被识别、
+// 顶点烘焙数与绑定姿态几何必须与模型自身渲染一致，姿态链路（旋转+位移+缩放）必须逐点吻合
+tasks.register('geoHarness', JavaExec) {
+    group = 'verification'
+    description = 'Verifies the GeckoLib/Bedrock (GeoBone-shaped) rig adapter against stand-in geo models'
+    classpath = sourceSets.harness.runtimeClasspath
+    mainClass = 'dev.swordkingdom.horde.harness.GeoHarness'
+}
+
+// 虚拟投掷物模拟的验证：重力/阻力积分、寿命与出界、方块碰撞、扫掠命中（不穿人）、
+// 穿透、护甲减免、AoE 衰减、生成上限、快照打包字节数。全部走「可注入回调 + 纯数学」。
+tasks.register('projectileHarness', JavaExec) {
+    group = 'verification'
+    description = 'Verifies virtual projectile simulation (ballistics, sweep hit, pierce, armor, AoE, caps)'
+    classpath = sourceSets.harness.runtimeClasspath
+    mainClass = 'dev.swordkingdom.horde.harness.ProjectileHarness'
+}
+
+// 渲染器覆盖面的验证：替身渲染器把「模型在字段里 / geo 形状 / 只能靠顶点捕获 / 渲染抛异常 /
+// 顶点超上限 / 三条路都不成立」逐条跑一遍，并用**真实的原版末影龙模型**离线烘一次。
+// 不需要 Minecraft 客户端单例，也不需要 GL。
+tasks.register('rendererCoverageHarness', JavaExec) {
+    group = 'verification'
+    description = 'Verifies every recognized entity-renderer shape (model field, geo, vertex capture, caps, failures)'
+    classpath = sourceSets.harness.runtimeClasspath
+    mainClass = 'dev.swordkingdom.horde.harness.RendererCoverageHarness'
+}
+
+// 投掷物自动发现的验证：用替身实体类型验证「同命名空间 + 名字词干」的打分选择、
+// 按原版基类推导默认参数、找不到候选时的兜底。
+tasks.register('skillDiscoveryHarness', JavaExec) {
+    group = 'verification'
+    description = 'Verifies mod-agnostic projectile discovery/scoring with stand-in entity classes'
+    classpath = sourceSets.harness.runtimeClasspath
+    mainClass = 'dev.swordkingdom.horde.harness.SkillDiscoveryHarness'
+}
+
+// 逐单位装备的验证：调色板映射与上限、per-unit SoA 读写、原版属性叠加（护甲/攻击力）、
+// 行为判定（弓/弩/剑/盾/普通物品）、逐单位与调色板拆包的真实字节数与带宽、变体网格缓存
+// （命中/淘汰/上限/失败不重试，用替身网格对象，不需要 GL）。
+tasks.register('equipHarness', JavaExec) {
+    group = 'verification'
+    description = 'Verifies per-unit equipment (palette, SoA, vanilla attribute stacking, profile, packets, variant cache)'
+    classpath = sourceSets.harness.runtimeClasspath
+    mainClass = 'dev.swordkingdom.horde.harness.EquipHarness'
+}
+
+// 100 单位规模的**二级分段与代价归因**：复现「ai/combat/skill 各 ~500ms」，
+// 量出每单位每 tick 的索敌/视线采样/方块查询次数，并给出优化前后的对照。
+tasks.register('crowdCostHarness', JavaExec) {
+    group = 'verification'
+    description = 'Reproduces the 100-unit ai/combat/skill cost and measures LOS sampling / block queries'
+    classpath = sourceSets.harness.runtimeClasspath
+    mainClass = 'dev.swordkingdom.horde.harness.CrowdCostHarness'
+}
+
+// 「先测量，再优化」的三条硬性质：姿态求值次数 ≤ 单位数 × 帧数、
+// 日志节流后每秒最多一行、索敌查询有上界且优化前后模拟结果逐字相同。
+tasks.register('profilerHarness', JavaExec) {
+    group = 'verification'
+    description = 'Verifies the instrumentation invariants (poseEval <= units*frames, log throttle, enemy-scan bound)'
+    classpath = sourceSets.harness.runtimeClasspath
+    mainClass = 'dev.swordkingdom.horde.harness.ProfilerHarness'
+}
+
+// 物理层（Unity3D/PhysX 参照）的离线对照：手算精确值对 TOI、60 格/秒的箭不隧穿、
+// 固定步长档位、接触求解收敛不抖、休眠状态机、层/队伍掩码、10k 单位 broadphase 次数上界。
+tasks.register('physicsHarness', JavaExec) {
+    group = 'verification'
+    description = 'Verifies the physics layer (analytic TOI/CCD no tunneling, fixed step, solver, sleep, layers, broadphase cost)'
+    classpath = sourceSets.harness.runtimeClasspath
+    mainClass = 'dev.swordkingdom.horde.harness.PhysicsHarness'
+    // 输出里有中文，Windows 默认编码（GBK/936）读 UTF-8 是乱码；显式钉住子进程编码。
+    jvmArgs '-Dfile.encoding=UTF-8'
+}
+
